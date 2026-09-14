@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akash Maths Online - Ultimate Smart Board Studio</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- PDF.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    </script>
+    <style>
+        body { background-color: #0B132B; overflow: hidden; margin: 0; padding: 0; user-select: none; }
+        /* Side Hover Zones for Full Screen Navigation */
+        .hover-zone-left, .hover-zone-right {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 80px;
+            z-index: 30;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .hover-zone-left { left: 0; background: linear-gradient(to right, rgba(0,0,0,0.3), transparent); }
+        .hover-zone-right { right: 0; background: linear-gradient(to left, rgba(0,0,0,0.3), transparent); }
+        div:hover > .hover-zone-left, div:hover > .hover-zone-right {
+            opacity: 1;
+        }
+        .nav-arrow-btn {
+            background: rgba(255, 255, 255, 0.9);
+            color: #1E293B;
+            border-radius: 50%;
+            width: 52px;
+            height: 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            font-size: 26px;
+            font-weight: bold;
+            transition: transform 0.15s;
+        }
+        .nav-arrow-btn:hover { transform: scale(1.1); background: #ffffff; }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col overflow-hidden select-none">
+
+    <!-- ABSOLUTE FULL SCREEN VIEWPORT -->
+    <div id="appContainer" class="relative w-full h-full flex items-center justify-center bg-black overflow-hidden">
+        
+        <!-- PDF Canvas Viewer -->
+        <canvas id="pdfCanvas" class="w-full h-full object-contain"></canvas>
+
+        <!-- Annotation & Shape Drawing Canvas Overlay -->
+        <canvas id="drawCanvas" class="absolute inset-0 z-20 cursor-crosshair pointer-events-none"></canvas>
+
+        <!-- Left Hover Zone (Previous Slide) -->
+        <div id="hoverPrev" class="hover-zone-left" title="Previous Slide">
+            <div class="nav-arrow-btn">&#10094;</div>
+        </div>
+
+        <!-- Right Hover Zone (Next Slide) -->
+        <div id="hoverNext" class="hover-zone-right" title="Next Slide">
+            <div class="nav-arrow-btn">&#10095;</div>
+        </div>
+
+        <!-- TOP-LEFT CHAPTER HUB LINK -->
+        <div class="absolute top-3 left-3 z-40">
+            <a href="https://www.akashmaths.online/p/master-smart-board-slides-hub.html" class="bg-[#1C2541]/90 hover:bg-[#1C2541] text-white px-3.5 py-2 rounded-xl shadow-lg backdrop-blur-md text-xs font-medium tracking-wide flex items-center gap-2 border border-white/20 transition transform hover:scale-105" title="Go to Chapter Hub">
+                <span>←</span> <span>Chapter Hub</span>
+            </a>
+        </div>
+
+        <!-- TOP-LEFT DISCREET SLIDE COUNTER -->
+        <div id="slideCounterDisplay" class="absolute top-3 left-36 bg-black/60 backdrop-blur-sm text-white px-3 py-2 rounded-xl text-xs font-mono tracking-wider z-40 pointer-events-none opacity-80 border border-white/10">
+            01 / --
+        </div>
+
+        <!-- BOTTOM-LEFT FLOATING NAVIGATION (Moved from bottom-center to bottom-left as requested) -->
+        <div class="absolute bottom-3 left-3 bg-[#1C2541]/90 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-2xl flex items-center space-x-3 z-40 border border-white/20">
+            <button onclick="onPrevPage()" class="p-1.5 rounded-lg bg-[#3A506B] hover:bg-[#475C7D] text-white transition shadow text-xs" title="Previous Slide">◀</button>
+            <span id="slideCounterBottom" class="text-white font-mono text-xs tracking-wider font-semibold">01 / --</span>
+            <button onclick="onNextPage()" class="p-1.5 rounded-lg bg-[#3A506B] hover:bg-[#475C7D] text-white transition shadow text-xs" title="Next Slide">▶</button>
+        </div>
+
+        <!-- RIGHT FLOATING SMART BOARD TOOLBAR -->
+        <aside class="absolute right-3 top-1/2 -translate-y-1/2 bg-[#1C2541]/95 backdrop-blur-md p-2 rounded-2xl shadow-2xl flex flex-col items-center space-y-2 z-40 border border-white/15">
+            <!-- Fullscreen Toggle Button -->
+            <button onclick="toggleFullscreen()" class="p-2.5 rounded-xl bg-amber-600 text-white hover:bg-amber-500 transition shadow text-sm mb-1" title="Toggle Fullscreen">🛈</button>
+            <div class="w-6 h-[1px] bg-white/20 mb-1"></div>
+
+            <button id="toolPen" onclick="setTool('pen')" class="p-2.5 rounded-xl bg-blue-600 text-white hover:bg-blue-500 transition shadow text-sm" title="Pen">✏️</button>
+            <button id="toolHighlighter" onclick="setTool('highlighter')" class="p-2.5 rounded-xl bg-gray-700 text-white hover:bg-gray-600 transition text-sm" title="Highlighter">🖍️</button>
+            <button id="toolEraser" onclick="setTool('eraser')" class="p-2.5 rounded-xl bg-gray-700 text-white hover:bg-gray-600 transition text-sm" title="Eraser">🧹</button>
+            
+            <div class="w-6 h-[1px] bg-white/20 my-0.5"></div>
+            
+            <!-- Shape Tools -->
+            <button id="toolLine" onclick="setTool('line')" class="p-2.5 rounded-xl bg-gray-700 text-white hover:bg-gray-600 transition text-sm" title="Straight Line">📏</button>
+            <button id="toolRect" onclick="setTool('rect')" class="p-2.5 rounded-xl bg-gray-700 text-white hover:bg-gray-600 transition text-sm" title="Rectangle Shape">◻️</button>
+            <button id="toolCircle" onclick="setTool('circle')" class="p-2.5 rounded-xl bg-gray-700 text-white hover:bg-gray-600 transition text-sm" title="Circle Shape">⭕</button>
+
+            <div class="w-6 h-[1px] bg-white/20 my-0.5"></div>
+            
+            <!-- Color Palette -->
+            <button onclick="setPenColor('#2563EB')" class="w-5 h-5 rounded-full bg-blue-600 border-2 border-white shadow" title="Blue"></button>
+            <button onclick="setPenColor('#DC2626')" class="w-5 h-5 rounded-full bg-red-600 border-2 border-white shadow" title="Red"></button>
+            <button onclick="setPenColor('#16A34A')" class="w-5 h-5 rounded-full bg-green-600 border-2 border-white shadow" title="Green"></button>
+            <button onclick="setPenColor('#000000')" class="w-5 h-5 rounded-full bg-black border-2 border-white shadow" title="Black"></button>
+
+            <div class="w-6 h-[1px] bg-white/20 my-0.5"></div>
+            <button onclick="clearCanvas()" class="p-2 rounded-xl bg-red-600/80 text-white hover:bg-red-500 transition text-xs" title="Clear Screen">🗑️</button>
+            <div class="w-6 h-[1px] bg-white/20 my-0.5"></div>
+            <button onclick="downloadPDF()" class="p-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 transition text-xs" title="Download PDF">📥</button>
+        </aside>
+
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        const pdfUrl = 'maths-ch1.pdf.pdf';
+
+        let pdfDoc = null,
+            pageNum = 1,
+            pageRendering = false,
+            pageNumPending = null,
+            scale = 1.5,
+            currentTool = 'pen',
+            penColor = '#2563EB';
+
+        const canvas = document.getElementById('pdfCanvas');
+        const ctx = canvas.getContext('2d');
+        const drawCanvas = document.getElementById('drawCanvas');
+        const drawCtx = drawCanvas.getContext('2d');
+
+        let slideDrawings = {};
+        let startX = 0, startY = 0, snapshot = null;
+
+        pdfjsLib.getDocument(pdfUrl).promise.then(function(pdfDoc_) {
+            pdfDoc = pdfDoc_;
+            updateCounters(1);
+            renderPage(pageNum);
+        }).catch(err => {
+            console.error(err);
+            alert("PDF लोड करने में विफल! कृपया फाइल का नाम चेक करें।");
+        });
+
+        function updateCounters(num) {
+            const str = `${String(num).padStart(2, '0')} / ${pdfDoc.numPages}`;
+            document.getElementById('slideCounterDisplay').textContent = str;
+            document.getElementById('slideCounterBottom').textContent = str;
+        }
+
+        function saveCurrentSlideDrawings() {
+            slideDrawings[pageNum] = drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+        }
+
+        function restoreSlideDrawings() {
+            drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+            if (slideDrawings[pageNum]) {
+                drawCtx.putImageData(slideDrawings[pageNum], 0, 0);
+            }
+        }
+
+        function renderPage(num) {
+            pageRendering = true;
+            pdfDoc.getPage(num).then(function(page) {
+                var viewport = page.getViewport({ scale: scale });
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+                drawCanvas.height = viewport.height;
+                drawCanvas.width = viewport.width;
+
+                var renderContext = { canvasContext: ctx, viewport: viewport };
+                var renderTask = page.render(renderContext);
+
+                renderTask.promise.then(function() {
+                    pageRendering = false;
+                    restoreSlideDrawings();
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                });
+            });
+            updateCounters(num);
+        }
+
+        function queueRenderPage(num) {
+            if (pageRendering) { pageNumPending = num; } else { renderPage(num); }
+        }
+
+        function onPrevPage() {
+            if (pageNum <= 1) return;
+            saveCurrentSlideDrawings();
+            pageNum--;
+            queueRenderPage(pageNum);
+        }
+
+        function onNextPage() {
+            if (pageNum >= pdfDoc.numPages) return;
+            saveCurrentSlideDrawings();
+            pageNum++;
+            queueRenderPage(pageNum);
+        }
+
+        document.getElementById('hoverPrev').addEventListener('click', onPrevPage);
+        document.getElementById('hoverNext').addEventListener('click', onNextPage);
+
+        document.getElementById('appContainer').addEventListener('click', (e) => {
+            if (e.target.id === 'appContainer' || e.target.id === 'pdfCanvas') {
+                const rect = canvas.getBoundingClientRect();
+                if (e.clientX < rect.left) {
+                    onPrevPage();
+                } else if (e.clientX > rect.right) {
+                    onNextPage();
+                }
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') onPrevPage();
+            if (e.key === 'ArrowRight') onNextPage();
+        });
+
+        let isDrawing = false;
+        let lastX = 0, lastY = 0;
+
+        drawCanvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            startX = e.offsetX;
+            startY = e.offsetY;
+            [lastX, lastY] = [e.offsetX, e.offsetY];
+            if (['line', 'rect', 'circle'].includes(currentTool)) {
+                snapshot = drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height);
+            }
+        });
+
+        drawCanvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+
+            if (['line', 'rect', 'circle'].includes(currentTool)) {
+                drawCtx.putImageData(snapshot, 0, 0);
+                drawCtx.beginPath();
+                drawCtx.strokeStyle = penColor;
+                drawCtx.lineWidth = 3;
+                drawCtx.globalAlpha = 1.0;
+
+                if (currentTool === 'line') {
+                    drawCtx.moveTo(startX, startY);
+                    drawCtx.lineTo(e.offsetX, e.offsetY);
+                    drawCtx.stroke();
+                } else if (currentTool === 'rect') {
+                    let width = e.offsetX - startX;
+                    let height = e.offsetY - startY;
+                    drawCtx.strokeRect(startX, startY, width, height);
+                } else if (currentTool === 'circle') {
+                    let radiusX = Math.abs(e.offsetX - startX) / 2;
+                    let radiusY = Math.abs(e.offsetY - startY) / 2;
+                    let centerX = startX + (e.offsetX - startX) / 2;
+                    let centerY = startY + (e.offsetY - startY) / 2;
+                    drawCtx.ellipse(centerX, centerY, radiusX, radiusY, 0, 0, 2 * Math.PI);
+                    drawCtx.stroke();
+                }
+            } else {
+                drawCtx.beginPath();
+                drawCtx.moveTo(lastX, lastY);
+                drawCtx.lineTo(e.offsetX, e.offsetY);
+                
+                if (currentTool === 'pen') {
+                    drawCtx.strokeStyle = penColor;
+                    drawCtx.lineWidth = 3.5;
+                    drawCtx.globalAlpha = 1.0;
+                } else if (currentTool === 'highlighter') {
+                    drawCtx.strokeStyle = '#FACC15';
+                    drawCtx.lineWidth = 20;
+                    drawCtx.globalAlpha = 0.35;
+                } else if (currentTool === 'eraser') {
+                    drawCtx.strokeStyle = '#000000';
+                    drawCtx.lineWidth = 30;
+                    drawCtx.globalAlpha = 1.0;
+                }
+                
+                drawCtx.lineCap = 'round';
+                drawCtx.stroke();
+                [lastX, lastY] = [e.offsetX, e.offsetY];
+            }
+            saveCurrentSlideDrawings();
+        });
+
+        window.addEventListener('mouseup', () => isDrawing = false);
+
+        function setTool(tool) {
+            currentTool = tool;
+            drawCanvas.style.pointerEvents = 'auto';
+            document.querySelectorAll('aside button').forEach(b => b.classList.remove('ring-4', 'ring-white/60'));
+            const btnMap = { 'pen': 'toolPen', 'highlighter': 'toolHighlighter', 'eraser': 'toolEraser', 'line': 'toolLine', 'rect': 'toolRect', 'circle': 'toolCircle' };
+            if(btnMap[tool]) document.getElementById(btnMap[tool]).classList.add('ring-4', 'ring-white/60');
+        }
+
+        function setPenColor(color) {
+            penColor = color;
+            if(['line', 'rect', 'circle', 'highlighter', 'eraser'].indexOf(currentTool) === -1) {
+                setTool('pen');
+            }
+        }
+
+        function clearCanvas() {
+            drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+            saveCurrentSlideDrawings();
+        }
+
+        function downloadPDF() {
+            window.open(pdfUrl, 'maths-ch1.pdf');
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    alert(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
